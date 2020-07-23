@@ -1,0 +1,126 @@
+pipeline{
+    agent{
+        node{
+            label "master"
+        }
+    }
+
+   
+    stages{  
+        stage("Copying Chnaged Files"){
+            steps{
+                
+                timeout(time: 10, unit: 'MINUTES'){
+                    notifyTeam("null","<p>Hi User,<br><br>Your Input is Required,<br>Kindly Provide <b>CommitID</b>, Job will timeout in 10 Minutes<br>Click Here : <a href='${BUILD_URL}console'>${BUILD_URL}console</a><br><br><b>Thank You!</b></p>",false)
+                    echo "Starting Stage Checkout"
+        
+                    script{
+                    def userInput= input(
+                                              id: 'userInput', message: 'Previous Commit ID:?',
+                                                parameters: [
+                                                    string(name:"previous_commit",defaultValue: env.GIT_PREVIOUS_SUCCESSFUL_COMMIT,description: "From this commit id to last commit id, all the chnanges will be deployed")
+                                                ]
+                                        )
+                    PREVIOUS_COMMIT = userInput
+                if ( "${PREVIOUS_COMMIT}" == null){
+                    sh "./Jenkins/getDelta.sh ${env.GIT_BRANCH} ${env.GIT_PREVIOUS_SUCCESSFUL_COMMIT}"
+                }
+                else{
+                    sh "./Jenkins/getDelta.sh ${env.GIT_BRANCH} ${PREVIOUS_COMMIT}"
+                }
+                }//end of script
+            }//end of timeout
+          } //end of steps
+        }//end of stage
+
+
+        stage("Convert"){
+            steps{
+                script{
+                if (fileExists('target')) { 
+                    sh "ls -l Jenkins" 
+                    sh "python3 ./Jenkins/update_sfdx_json.py"
+                    sh "sudo /usr/local/lib/sfdx/bin/sfdx force:source:convert -r target/ -d changeDeploy/"
+                     }
+                else{
+                     echo "Nothing to Copy"
+                 }
+                }
+            }
+        }//end of stage
+
+
+        stage("Static Code Analysis"){
+            steps{
+                
+                echo "Static Code Analysis"
+                sh "/home/askadmin/pmd-bin-6.22.0/bin/run.sh pmd -d force-app/ -f summaryhtml -R Jenkins/ApexRules.xml -r Jenkins/PMDReport.html -failOnViolation false"
+            }       
+        }//end of stage 
+
+
+        stage("Approval"){
+            steps{
+                 notifyTeam("null","<p>Hi User,<br><br>Your <b>Approval</b> is Required,<br>Kindly Provide <b>Approval</b>, Job will timeout in 10 Minutes<br>Click Here:<a href='${BUILD_URL}console'>${BUILD_URL}console</a><br><bt><b>Thank You!</b></p>",false)
+                 echo "${env.GIT_BRANCH}"
+                 timeout(time: 10, unit: 'MINUTES'){
+                    input "Deploy to QA?"
+                 }
+            }
+        }//end of stage  
+
+
+        stage("Deploy"){
+            environment {
+                        qa_ask_sf_user = credentials("qa_ask_sf_user")
+                        qa_ask_sf_password = credentials("qa_ask_sf_password")
+            }
+
+            when{
+                equals expected: "origin/QA", actual: "${env.GIT_BRANCH}"
+            }
+
+            steps{  
+                script{
+                 if (fileExists('changeDeploy')) {              
+                   sh "sudo /home/askadmin/apache-ant-1.9.14/bin/ant deployUnpackaged -Dsf.username=${qa_ask_sf_user} -Dsf.password=${qa_ask_sf_password} -buildfile Jenkins/build.xml"
+                 }
+                 else{
+                     echo "Nothing to Copy"
+                 }
+                }
+            }
+        }//end of stage
+      
+       
+    }
+    post{
+         success{
+              
+              notifyTeam("Jenkins/PMDReport.html",'''<p>Congratulation!! Job ran Successfully!!<br><br>PFA Static Code Anaysis Report <br>Click Here:<a href='${BUILD_URL}console'>${BUILD_URL}console</a><br><br><b>Thank You!</b></p> ''',false)
+         }
+         failure{
+    
+             notifyTeam("Jenkins/PMDReport.html",'''<p>Hi User,<br><br>Job FAILED <br>Click Here:<a href='${BUILD_URL}console'>${BUILD_URL}console</a><br><br><b>Thank You!</b></p> ''',true)
+         }
+         aborted{
+              
+             notifyTeam("Jenkins/PMDReport.html",'''<p>Hi User, <br><br>Job has been ABORTED <br>Click Here:<a href='${BUILD_URL}console'> console</a><br><br><b>Thank You!</b></p> ''',true)
+         }
+         cleanup{
+             cleanWs()
+         }
+    }//end of post
+}
+
+def notifyTeam(attachments,emailbody,sendLog){
+         emailext (
+                    mimeType: 'text/html',
+                    attachmentsPattern: "${attachments}",
+                    subject: "Job '${env.JOB_NAME} ${env.BUILD_NUMBER}'",
+                    body: "${emailbody}",
+                    attachLog: "${sendLog}",
+                    to: "pankaj.kadam@centelon.com",
+                    from: "askjenkins@askgroup.in"
+                )
+}

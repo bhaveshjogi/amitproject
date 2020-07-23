@@ -1,0 +1,20 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Calendly//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+BEGIN:VEVENT
+DTSTAMP:20200722T082530Z
+UID:calendly-139787375
+DTSTART:20200728T053000Z
+DTEND:20200728T060000Z
+CLASS:PRIVATE
+DESCRIPTION:Event Name: WordsMaya Video Assessment Appointments Booking\nDa
+ te & Time: 11:00am - 11:30am (India Standard Time) on Tuesday\, July 28\, 
+ 2020\n\nYour Centelon Employee ID: 1089\n\nCancellation Policy: The meetin
+ g once scheduled cannot be cancelled or rescheduled. Contact HR in case of
+  emergency.\n
+SUMMARY:WordsMaya Video Assessment Appointments Booking with WordsMaya
+TRANSP:OPAQUE
+END:VEVENT
+END:VCALENDAR
